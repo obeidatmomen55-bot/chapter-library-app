@@ -1,0 +1,14 @@
+# Coding Style
+
+- Preserve my existing coding style and formatting.
+- Keep clear spacing between sections of code.
+- Use readable indentation.
+- Do not compress code just to make it shorter.
+- Do not put multiple statements or JSX elements on the same line when separate lines are clearer.
+- Keep blank lines between logical sections.
+- Follow the formatting style already used in my existing files.
+- Before changing a file, inspect its existing style and follow it.
+- Do not reformat unrelated code.
+- Do not change formatting just for personal preference.
+- Keep React components simple and readable.
+- Prefer beginner-friendly code over clever or overly compact code.
