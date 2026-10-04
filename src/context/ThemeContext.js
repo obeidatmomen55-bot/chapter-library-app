@@ -7,8 +7,12 @@ export function ThemeProvider({ children }) {
     const saved = localStorage.getItem('chapter-theme');
     if (saved) return saved;
 
-    // Detect system preference
-    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+    // Detect system preference safely
+    if (
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: light)').matches
+    ) {
       return 'light';
     }
     return 'dark';

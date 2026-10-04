@@ -1,6 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
+import {
+  Sparkles,
+  BookOpen,
+  Bookmark,
+  Heart,
+  Search,
+  Feather,
+  Sprout,
+  Palette,
+  Atom,
+  Shuffle,
+  Layers,
+  ArrowRight
+} from 'lucide-react';
 
 import { ThemeProvider } from './context/ThemeContext';
 import { fetchManyBooks, searchBooks } from './services/bookApi';
@@ -24,13 +38,13 @@ const categories = [
 ];
 
 const categoryIcons = {
-  'All books': '📚',
-  'Fiction': '✨',
-  'Mystery': '🔍',
-  'Memoir': '✍️',
-  'Personal Growth': '🌱',
-  'Art & Design': '🎨',
-  'Science': '🔬',
+  'All books': Layers,
+  'Fiction': Sparkles,
+  'Mystery': Search,
+  'Memoir': Feather,
+  'Personal Growth': Sprout,
+  'Art & Design': Palette,
+  'Science': Atom,
 };
 
 function AppContent() {
@@ -53,7 +67,15 @@ function AppContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState(null);
 
-  // Persist borrowed/saved to localStorage
+  // View mode (grid or list)
+  const [viewMode, setViewMode] = useState(() => {
+    return localStorage.getItem('chapter-view-mode') || 'grid';
+  });
+
+  // Sort order
+  const [sortBy, setSortBy] = useState('featured');
+
+  // Persist borrowed, saved & view mode to localStorage
   useEffect(() => {
     localStorage.setItem('chapter-borrowed', JSON.stringify(borrowed));
   }, [borrowed]);
@@ -62,7 +84,27 @@ function AppContent() {
     localStorage.setItem('chapter-saved', JSON.stringify(saved));
   }, [saved]);
 
-  // Fetch all books on mount — streams results as each batch arrives
+  useEffect(() => {
+    localStorage.setItem('chapter-view-mode', viewMode);
+  }, [viewMode]);
+
+  // Global keyboard shortcut: Cmd+K or Ctrl+K
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        const inputEl = document.querySelector('.search-box input');
+        if (inputEl) {
+          inputEl.focus();
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Fetch all books on mount with streaming batches
   useEffect(() => {
     let cancelled = false;
 
@@ -72,7 +114,6 @@ function AppContent() {
 
       try {
         const results = await fetchManyBooks((booksSnapshot) => {
-          // Update state with each batch so books appear immediately
           if (!cancelled) {
             setAllBooks(booksSnapshot);
             setLoading(false);
@@ -103,7 +144,7 @@ function AppContent() {
     };
   }, []);
 
-  // Debounced API search — searches on top of the loaded library
+  // Debounced API search
   useEffect(() => {
     if (!searchQuery.trim()) {
       setSearchResults(null);
@@ -120,25 +161,26 @@ function AppContent() {
       } finally {
         setIsSearching(false);
       }
-    }, 600);
+    }, 550);
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // The books to display — either search results or the full library
-  const books = searchResults || allBooks;
+  // The pool of books to display
+  const baseBooks = searchResults || allBooks;
 
+  // Filtered and Sorted books memo
   const visibleBooks = useMemo(() => {
-    let filtered = books;
+    let filtered = baseBooks;
 
     if (currentView === 'my-books') {
-      // For "my books" and "saved", always search across ALL loaded books
       filtered = allBooks.filter((book) => borrowed.includes(book.id));
     } else if (currentView === 'saved') {
       filtered = allBooks.filter((book) => saved.includes(book.id));
     }
 
-    return filtered.filter((book) => {
+    // Category & search filter
+    filtered = filtered.filter((book) => {
       const matchesCategory =
         activeCategory === 'All books' || book.genre === activeCategory;
       const searchText =
@@ -147,15 +189,27 @@ function AppContent() {
 
       return matchesCategory && matchesSearch;
     });
-  }, [activeCategory, search, currentView, borrowed, saved, books, allBooks]);
+
+    // Sorting
+    const sorted = [...filtered];
+    if (sortBy === 'rating') {
+      sorted.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+    } else if (sortBy === 'title') {
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'author') {
+      sorted.sort((a, b) => a.author.localeCompare(b.author));
+    }
+
+    return sorted;
+  }, [activeCategory, search, currentView, borrowed, saved, baseBooks, allBooks, sortBy]);
 
   function toggleBook(id) {
     setBorrowed((current) => {
       if (current.includes(id)) {
-        toast('Book returned!', { icon: '📖' });
+        toast('Book returned to library', { icon: '📖' });
         return current.filter((bookId) => bookId !== id);
       }
-      toast.success('Book borrowed!', { icon: '📚' });
+      toast.success('Book added to your shelf!', { icon: '✨' });
       return [...current, id];
     });
   }
@@ -163,10 +217,10 @@ function AppContent() {
   function toggleSaved(id) {
     setSaved((current) => {
       if (current.includes(id)) {
-        toast('Removed from saved', { icon: '💔' });
+        toast('Removed from saved titles', { icon: '🖤' });
         return current.filter((bookId) => bookId !== id);
       }
-      toast('Saved for later!', { icon: '♥' });
+      toast.success('Saved to your collection', { icon: '💖' });
       return [...current, id];
     });
   }
@@ -177,11 +231,20 @@ function AppContent() {
     setSearchResults(null);
     setActiveCategory('All books');
     setCurrentView('discover');
+    setSortBy('featured');
   }
 
   function handleSearchInput(value) {
     setSearch(value);
     setSearchQuery(value);
+  }
+
+  // Surprise pick handler
+  function handleSurpriseMe() {
+    if (allBooks.length === 0) return;
+    const randomBook = allBooks[Math.floor(Math.random() * allBooks.length)];
+    setSelectedBook(randomBook);
+    toast('Curator picked a surprise read for you!', { icon: '🎲' });
   }
 
   return (
@@ -190,12 +253,15 @@ function AppContent() {
         position="bottom-right"
         toastOptions={{
           className: 'toast-custom',
-          duration: 2000,
+          duration: 2500,
           style: {
             background: 'var(--card-bg)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border-color)',
+            borderRadius: '12px',
             fontSize: '13px',
+            fontWeight: '500',
+            boxShadow: 'var(--shadow-lg)'
           },
         }}
       />
@@ -210,86 +276,127 @@ function AppContent() {
       />
 
       <main className="main-content" id="home">
+        {/* Topbar */}
         <header className="topbar">
           <div className="breadcrumb">
-            Your library <span>/</span>{' '}
-            <strong>
+            <span className="breadcrumb-root">Chapter</span>
+            <span className="breadcrumb-divider">/</span>
+            <strong className="breadcrumb-current">
               {currentView === 'my-books'
-                ? 'My books'
+                ? 'My Shelf'
                 : currentView === 'saved'
-                  ? 'Saved'
-                  : 'Discover'}
+                  ? 'Saved Collection'
+                  : 'Discover Library'}
             </strong>
           </div>
+
           <div className="topbar-right">
-            <span className="open-status">
-              <i /> Open today until 8 pm
-            </span>
+            {/* Quick Stats Pill */}
+            <div className="reading-stats-pill">
+              <span className="stat-item" title="Active loans">
+                <Bookmark size={13} className="text-emerald-500" />
+                <strong>{borrowed.length}</strong> on shelf
+              </span>
+              <span className="stat-separator">•</span>
+              <span className="stat-item" title="Saved for later">
+                <Heart size={13} className="text-rose-500" />
+                <strong>{saved.length}</strong> saved
+              </span>
+            </div>
+
             {isSearching && (
-              <span className="searching-indicator">Searching API...</span>
-            )}
-            {!loading && (
-              <span className="book-count-badge">
-                {allBooks.length} books loaded
+              <span className="searching-indicator">
+                <span className="spinner-dot" />
+                Searching...
               </span>
             )}
-            <button className="avatar" aria-label="Your profile">
-              M
-            </button>
+
+            {!loading && (
+              <span className="book-count-badge">
+                <Layers size={12} />
+                <span>{allBooks.length} books</span>
+              </span>
+            )}
+
+            {/* Profile Avatar */}
+            <div className="user-profile-btn" title="Your Reading Profile">
+              <span className="user-avatar-initial">M</span>
+              <span className="online-indicator-dot" />
+            </div>
           </div>
         </header>
 
+        {/* Hero Banner (Discover View) */}
         <AnimatePresence mode="wait">
-          {currentView === 'discover' && (
+          {currentView === 'discover' && !search && (
             <motion.section
               className="welcome"
               id="discover"
               key="welcome"
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.35 }}
             >
               <div className="welcome-copy">
                 <div className="eyebrow">
-                  <span /> YOUR NEXT CHAPTER STARTS HERE
+                  <Sparkles size={13} className="eyebrow-sparkle" />
+                  <span>CURATED EDITION · AUTUMN 2026</span>
                 </div>
+
                 <h1>
                   A little more
                   <br />
                   <em>you</em> time.
                 </h1>
+
                 <p>
                   {loading
-                    ? 'Loading hundreds of books from the library...'
-                    : `${allBooks.length} books ready. Good stories, fresh perspectives, and a quiet place to find them.`}
+                    ? 'Connecting to Open Library collection...'
+                    : `Over ${allBooks.length} curated works of literature, thought, and discovery ready for your shelf.`}
                 </p>
-                <a
-                  className="welcome-link"
-                  href="#catalog"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setCurrentView('my-books');
-                  }}
-                >
-                  Find your next read <span>↗</span>
-                </a>
+
+                <div className="hero-cta-group">
+                  <a
+                    className="welcome-link primary-cta"
+                    href="#catalog"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setActiveCategory('Fiction');
+                    }}
+                  >
+                    <span>Explore Bestsellers</span>
+                    <ArrowRight size={14} />
+                  </a>
+
+                  <button
+                    className="welcome-link surprise-cta"
+                    onClick={handleSurpriseMe}
+                  >
+                    <Shuffle size={14} />
+                    <span>Surprise Me</span>
+                  </button>
+                </div>
               </div>
 
+              {/* Floating Book Art Graphic */}
               <div
                 className="hero-art"
-                aria-label="A stack of books and a cup of coffee"
+                aria-label="Artistic stack of books"
               >
                 <div className="sun-shape" />
                 <div className="plant plant-one">✳</div>
                 <div className="plant plant-two">✳</div>
+
                 <div className="hero-book hero-book-back">
+                  <div className="hero-book-spine" />
                   THE ART
                   <br />
                   OF SLOW
                   <br />
                   LIVING
                 </div>
+
                 <div className="hero-book hero-book-front">
                   <span>the</span>
                   <strong>
@@ -299,45 +406,47 @@ function AppContent() {
                   </strong>
                   <small>A NOVEL</small>
                 </div>
+
                 <div className="coffee">
                   <i />
                 </div>
-                <div className="hero-sparkle">✳</div>
+                <div className="hero-sparkle">✦</div>
               </div>
 
               <div className="hero-note">
-                <span>✳</span> A good book is
-                <br />
-                always a good idea.
+                <span>✦</span> A good book is always a good idea.
               </div>
             </motion.section>
           )}
         </AnimatePresence>
 
+        {/* Catalog Section */}
         <section className="catalog" id="catalog">
           <div className="section-heading">
             <div>
               <div className="eyebrow small-eyebrow">
                 {currentView === 'my-books'
-                  ? 'YOUR SHELF'
+                  ? 'YOUR ACTIVE SHELF'
                   : currentView === 'saved'
-                    ? 'FOR LATER'
-                    : 'PICK UP WHERE YOU LEFT OFF'}
+                    ? 'BOOKMARKED FOR LATER'
+                    : 'EXPLORE TITLES'}
               </div>
+
               <h2>
                 {currentView === 'my-books'
-                  ? 'My books'
+                  ? 'My Books Shelf'
                   : currentView === 'saved'
-                    ? 'Saved books'
+                    ? 'Saved Reading List'
                     : 'Find your next read'}
-                <span>.</span>
+                <span className="accent-dot">.</span>
               </h2>
+
               <p>
                 {currentView === 'my-books'
-                  ? 'Books you are currently reading.'
+                  ? `You have borrowed ${borrowed.length} title${borrowed.length === 1 ? '' : 's'} on loan.`
                   : currentView === 'saved'
-                    ? 'Titles you want to read later.'
-                    : `Showing ${visibleBooks.length} of ${books.length} books from Google Books.`}
+                    ? `You have saved ${saved.length} title${saved.length === 1 ? '' : 's'} for later.`
+                    : `Displaying ${visibleBooks.length} titles from global collection.`}
               </p>
             </div>
 
@@ -345,34 +454,39 @@ function AppContent() {
               search={search}
               setSearch={handleSearchInput}
               onReset={resetFilters}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
             />
           </div>
 
+          {/* Category Tabs */}
           <div
             className="category-tabs"
             role="tablist"
             aria-label="Filter books by category"
           >
-            {categories.map((category) => (
-              <button
-                key={category}
-                role="tab"
-                aria-selected={activeCategory === category}
-                className={
-                  activeCategory === category
-                    ? 'category-tab active-tab'
-                    : 'category-tab'
-                }
-                onClick={() => setActiveCategory(category)}
-              >
-                <span style={{ marginRight: '6px', fontSize: '12px' }}>
-                  {categoryIcons[category]}
-                </span>
-                {category}
-              </button>
-            ))}
+            {categories.map((category) => {
+              const IconComp = categoryIcons[category] || Sparkles;
+              const isActive = activeCategory === category;
+
+              return (
+                <button
+                  key={category}
+                  role="tab"
+                  aria-selected={isActive}
+                  className={`category-tab ${isActive ? 'active-tab' : ''}`}
+                  onClick={() => setActiveCategory(category)}
+                >
+                  <IconComp size={14} className="tab-icon" />
+                  <span>{category}</span>
+                </button>
+              );
+            })}
           </div>
 
+          {/* Error Notice */}
           {error && (
             <motion.div
               className="api-notice"
@@ -383,10 +497,14 @@ function AppContent() {
             </motion.div>
           )}
 
+          {/* Book Cards Grid / List */}
           {loading ? (
-            <LoadingSkeleton count={12} />
+            <LoadingSkeleton count={viewMode === 'grid' ? 12 : 6} viewMode={viewMode} />
           ) : (
-            <motion.div className="book-grid" layout>
+            <motion.div
+              className={viewMode === 'grid' ? 'book-grid' : 'book-list-container'}
+              layout
+            >
               <AnimatePresence mode="popLayout">
                 {visibleBooks.map((book, index) => (
                   <BookCard
@@ -398,41 +516,57 @@ function AppContent() {
                     onToggleSave={toggleSaved}
                     onToggleBorrow={toggleBook}
                     onViewDetails={setSelectedBook}
+                    viewMode={viewMode}
                   />
                 ))}
               </AnimatePresence>
             </motion.div>
           )}
 
+          {/* Empty State */}
           {!loading && visibleBooks.length === 0 && (
             <motion.div
               className="empty-state"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3 }}
             >
-              <span>⌕</span>
-              <h3>No books found</h3>
-              <p>Try another title or browse all books.</p>
-              <button onClick={resetFilters}>Show all books</button>
+              <div className="empty-state-icon">
+                <BookOpen size={32} />
+              </div>
+              <h3>No books matching your criteria</h3>
+              <p>Try searching for a different author, title, or clear active filters.</p>
+              <button className="empty-reset-btn" onClick={resetFilters}>
+                Browse All Books
+              </button>
             </motion.div>
           )}
 
+          {/* Catalog Footer */}
           <div className="catalog-footer">
             <span>
-              Showing {visibleBooks.length} of {books.length} books
+              Showing {visibleBooks.length} of {allBooks.length} total books
             </span>
-            <a href="#catalog" onClick={resetFilters}>
-              View all books <span>→</span>
+            <a href="#catalog" onClick={resetFilters} className="footer-view-all">
+              <span>View All Collection</span>
+              <ArrowRight size={12} />
             </a>
           </div>
         </section>
 
+        {/* Page Footer */}
         <footer className="page-footer">
-          <span>Made for the love of a good story.</span>
-          <span>YOUR NEIGHBORHOOD LIBRARY · EST. 1987</span>
+          <div className="footer-left">
+            <span>Made with craft for the love of stories.</span>
+            <span className="footer-tagline">CHAPTER EDITION · DIGITAL SANCTUARY</span>
+          </div>
+          <div className="footer-right">
+            <span>Powered by Open Library API</span>
+          </div>
         </footer>
       </main>
 
+      {/* Book Detail Modal */}
       <BookModal
         book={selectedBook}
         isOpen={!!selectedBook}

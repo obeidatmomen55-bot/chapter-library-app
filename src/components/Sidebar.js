@@ -1,13 +1,26 @@
 import ThemeToggle from './ThemeToggle';
+import {
+  Compass,
+  Bookmark,
+  Heart,
+  Sparkles,
+  Search,
+  Feather,
+  Sprout,
+  Palette,
+  Atom,
+  HelpCircle,
+  ArrowUpRight,
+  BookMarked
+} from 'lucide-react';
 
-const categoryIcons = {
-  'All books': '📚',
-  'Fiction': '✨',
-  'Mystery': '🔍',
-  'Memoir': '✍️',
-  'Personal Growth': '🌱',
-  'Art & Design': '🎨',
-  'Science': '🔬',
+const categoryIconComponents = {
+  'Fiction': Sparkles,
+  'Mystery': Search,
+  'Memoir': Feather,
+  'Personal Growth': Sprout,
+  'Art & Design': Palette,
+  'Science': Atom,
 };
 
 const categories = [
@@ -29,86 +42,101 @@ function Sidebar({
 }) {
   return (
     <aside className="sidebar">
-      <a className="brand" href="#home" aria-label="Chapter home">
-        <span className="brand-mark">c.</span>
-        <span>
-          chapter<span className="brand-dot">.</span>
-        </span>
+      {/* Brand Header */}
+      <a className="brand" href="#home" aria-label="Chapter Home">
+        <div className="brand-badge">
+          <BookMarked size={16} strokeWidth={2.4} />
+        </div>
+        <div className="brand-text">
+          <span className="brand-title">
+            chapter<span className="brand-dot">.</span>
+          </span>
+          <span className="brand-subtitle">CURATED LIBRARY</span>
+        </div>
       </a>
 
-      <div className="side-label">MENU</div>
+      {/* Main Navigation */}
+      <div className="side-label">EXPLORE</div>
       <nav className="main-nav" aria-label="Main navigation">
-        <a
+        <button
           className={`nav-link ${currentView === 'discover' ? 'active' : ''}`}
-          href="#discover"
-          onClick={(e) => {
-            e.preventDefault();
+          onClick={() => {
             setCurrentView('discover');
+            setActiveCategory('All books');
           }}
         >
-          <span className="nav-icon">⌕</span>
-          Discover
-        </a>
-        <a
+          <Compass size={17} className="nav-icon" />
+          <span>Discover</span>
+        </button>
+
+        <button
           className={`nav-link ${currentView === 'my-books' ? 'active' : ''}`}
-          href="#catalog"
-          onClick={(e) => {
-            e.preventDefault();
-            setCurrentView('my-books');
-          }}
+          onClick={() => setCurrentView('my-books')}
         >
-          <span className="nav-icon">◤</span>
-          My books
-          <span className="nav-count">{borrowedCount}</span>
-        </a>
-        <a
+          <Bookmark size={17} className="nav-icon" />
+          <span>My Shelf</span>
+          {borrowedCount > 0 && (
+            <span className="nav-count active-count">{borrowedCount}</span>
+          )}
+        </button>
+
+        <button
           className={`nav-link ${currentView === 'saved' ? 'active' : ''}`}
-          href="#saved"
-          onClick={(e) => {
-            e.preventDefault();
-            setCurrentView('saved');
-          }}
+          onClick={() => setCurrentView('saved')}
         >
-          <span className="nav-icon">♡</span>
-          Saved
-          <span className="nav-count">{savedCount}</span>
-        </a>
+          <Heart size={17} className="nav-icon" />
+          <span>Saved</span>
+          {savedCount > 0 && (
+            <span className="nav-count">{savedCount}</span>
+          )}
+        </button>
       </nav>
 
-      <div className="side-label genres-label">BROWSE BY GENRE</div>
+      {/* Browse by Genre */}
+      <div className="side-label genres-label">BROWSE GENRES</div>
       <nav className="genre-nav" aria-label="Browse by genre">
-        {categories.map((category) => (
-          <button
-            key={category}
-            className={
-              activeCategory === category
-                ? 'genre-link selected'
-                : 'genre-link'
-            }
-            onClick={() => setActiveCategory(category)}
-          >
-            <span
-              className="genre-icon"
-              style={{ marginRight: '8px', fontSize: '14px' }}
+        {categories.map((category) => {
+          const IconComponent = categoryIconComponents[category] || Sparkles;
+          const isSelected = activeCategory === category && currentView === 'discover';
+
+          return (
+            <button
+              key={category}
+              className={`genre-link ${isSelected ? 'selected' : ''}`}
+              onClick={() => {
+                setCurrentView('discover');
+                setActiveCategory(category);
+              }}
             >
-              {categoryIcons[category]}
-            </span>
-            {category}
-          </button>
-        ))}
+              <span className="genre-icon-pill">
+                <IconComponent size={14} />
+              </span>
+              <span>{category}</span>
+            </button>
+          );
+        })}
       </nav>
 
+      {/* Sidebar Footer */}
       <div className="sidebar-bottom">
         <ThemeToggle />
+
         <div className="help-section">
-          <div className="help-icon">?</div>
+          <div className="help-icon">
+            <HelpCircle size={15} />
+          </div>
           <div>
             <strong>Need a hand?</strong>
-            <span>We're happy to help.</span>
+            <span>Library concierge</span>
           </div>
         </div>
-        <a href="mailto:hello@chapter.library" aria-label="Email support">
-          ↗
+
+        <a
+          href="mailto:hello@chapter.library"
+          aria-label="Email support"
+          className="help-link"
+        >
+          <ArrowUpRight size={15} />
         </a>
       </div>
     </aside>
